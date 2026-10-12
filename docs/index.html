@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>台灣物價變化 BI 分析儀表板</title>
+<meta name="description" content="消費者物價指數（CPI）與各類商品漲幅比較">
+<style>
+:root{
+  --navy:#0f2547; --navy-2:#1b3a6b; --blue:#2f6fdb; --blue-soft:#e6eefc;
+  --bg:#f2f5f9; --card:#fff; --line:#dfe5ee; --ink:#14233f; --muted:#5d6b84;
+  --up:#d64545; --down:#1f9d7a; --warn-bg:#fff6e0; --warn-line:#f0d58a; --warn-ink:#6b4e00;
+  --r:14px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.65 "Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased}
+.num{font-variant-numeric:tabular-nums}
+a{color:var(--blue)}
+:focus-visible{outline:3px solid #8fb4f5;outline-offset:2px;border-radius:6px}
+.wrap{max-width:1240px;margin:0 auto;padding:0 20px}
+
+/* 標題區 */
+header.top{background:var(--navy);color:#fff;padding:28px 0 22px}
+header.top .wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:28px;align-items:end}
+h1{margin:0;font-size:clamp(1.55rem,3.2vw,2.15rem);font-weight:700;letter-spacing:.02em;line-height:1.25}
+.sub{margin:6px 0 0;color:#b9c8e4;font-size:1.02rem}
+.spark{width:100%}
+.spark svg{display:block;width:100%;height:auto;overflow:visible}
+.spark .cap{display:flex;justify-content:space-between;color:#9fb3d6;font-size:.8rem;margin-top:4px}
+.spark .cap b{color:#fff;font-weight:600}
+
+/* 篩選列 */
+.filters{background:var(--card);border-bottom:1px solid var(--line);box-shadow:0 2px 10px rgba(15,37,71,.06);z-index:20}
+@media(min-width:900px){.filters{position:sticky;top:0}}
+.filters .wrap{display:grid;grid-template-columns:repeat(12,1fr);gap:14px 20px;padding-top:14px;padding-bottom:14px}
+.f{min-width:0}
+.f > label,.f > .lab{display:block;font-size:.82rem;color:var(--muted);margin-bottom:6px;font-weight:600}
+.f-year{grid-column:span 4}.f-month{grid-column:span 8}
+.f-cat{grid-column:span 4}.f-metric{grid-column:span 4}.f-mode{grid-column:span 4}
+@media(max-width:899px){.f-year,.f-month,.f-cat,.f-metric,.f-mode{grid-column:span 12}}
+@media(min-width:600px) and (max-width:899px){.f-cat,.f-metric,.f-mode{grid-column:span 4}.f-year{grid-column:span 12}}
+
+.range{position:relative;height:30px}
+.range .track{position:absolute;left:0;right:0;top:13px;height:4px;background:var(--line);border-radius:2px}
+.range .fill{position:absolute;top:13px;height:4px;background:var(--blue);border-radius:2px}
+.range input{position:absolute;left:0;width:100%;top:0;height:30px;margin:0;background:none;pointer-events:none;-webkit-appearance:none;appearance:none}
+.range input::-webkit-slider-thumb{-webkit-appearance:none;pointer-events:auto;width:20px;height:20px;border-radius:50%;background:#fff;border:3px solid var(--blue);cursor:grab}
+.range input::-moz-range-thumb{pointer-events:auto;width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid var(--blue);cursor:grab}
+.range input::-webkit-slider-runnable-track{background:none}
+.range input::-moz-range-track{background:none}
+.yrs{display:flex;justify-content:space-between;font-size:.9rem;font-weight:600;margin-top:2px}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip,.seg button{font:inherit;font-size:.86rem;border:1px solid var(--line);background:#fff;color:var(--ink);
+  padding:4px 11px;border-radius:999px;cursor:pointer;line-height:1.5}
+.chip[aria-pressed="true"]{background:var(--navy);border-color:var(--navy);color:#fff}
+.chip:hover:not([aria-pressed="true"]){background:var(--blue-soft)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.seg button{border:0;border-radius:0;padding:5px 13px}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--navy);color:#fff}
+.seg button:disabled,.chip:disabled{color:#98a3b6;background:#f4f6fa;cursor:not-allowed}
+.why{display:block;color:var(--muted);font-size:.78rem;margin-top:4px;line-height:1.4}
+
+/* 說明列 */
+.notice{margin:18px 0 0;padding:11px 14px;background:var(--warn-bg);border:1px solid var(--warn-line);
+  color:var(--warn-ink);border-radius:10px;font-size:.9rem}
+.notice.err{background:#fdeaea;border-color:#f0b5b5;color:#7a1f1f}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:18px 0}
+@media(max-width:899px){.kpis{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:480px){.kpis{grid-template-columns:1fr}}
+.kpi{background:var(--card);border-radius:var(--r);padding:16px 18px;box-shadow:0 1px 3px rgba(15,37,71,.08);border-top:4px solid var(--navy-2)}
+.kpi h2{margin:0;font-size:.86rem;font-weight:600;color:var(--muted)}
+.kpi .v{font-size:2rem;font-weight:700;line-height:1.2;margin:6px 0 2px;color:var(--navy)}
+.kpi .v small{font-size:1rem;font-weight:600;margin-left:2px}
+.kpi .v.na{font-size:1.2rem;color:var(--muted);font-weight:600;padding:.45rem 0}
+.kpi .v.up{color:var(--up)}.kpi .v.down{color:var(--down)}
+.kpi .d{font-size:.8rem;color:var(--muted);min-height:1.3em}
+
+/* 圖表卡片 */
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+@media(max-width:899px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border-radius:var(--r);box-shadow:0 1px 3px rgba(15,37,71,.08);padding:16px 16px 12px;position:relative;display:flex;flex-direction:column}
+.card header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px}
+.card h2{margin:0;font-size:1.05rem;line-height:1.4}
+.card .what{margin:2px 0 0;color:var(--muted);font-size:.8rem;line-height:1.5}
+.card .tools{display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+.card select{font:inherit;font-size:.82rem;border:1px solid var(--line);border-radius:8px;padding:3px 6px;background:#fff;color:var(--ink)}
+.chart{height:380px;width:100%}
+@media(max-width:600px){.chart{height:340px}.card header{flex-direction:column}.card .tools{justify-content:flex-start}}
+.method{margin:6px 2px 0;font-size:.78rem;color:var(--muted);line-height:1.55}
+.empty{position:absolute;inset:70px 16px 40px;display:none;align-items:center;justify-content:center;text-align:center;
+  background:rgba(255,255,255,.94);color:var(--muted);font-weight:600;border-radius:10px;z-index:3;padding:12px}
+.empty.on{display:flex}
+
+/* 頁尾 */
+footer{margin:26px 0 40px;background:var(--card);border-radius:var(--r);padding:20px 22px;box-shadow:0 1px 3px rgba(15,37,71,.08);font-size:.86rem;color:#33415c}
+footer h2{margin:0 0 8px;font-size:1rem;color:var(--navy)}
+footer dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:0}
+footer dt{font-weight:600;color:var(--navy)}
+footer dd{margin:0}
+@media(max-width:600px){footer dl{grid-template-columns:1fr}footer dt{margin-top:6px}}
+@media(max-width:899px){header.top .wrap{grid-template-columns:minmax(0,1fr);gap:16px}}
+html,body{overflow-x:hidden}
+.card,.kpi{min-width:0}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div>
+      <h1>台灣物價變化 BI 分析儀表板</h1>
+      <p class="sub">消費者物價指數（CPI）與各類商品漲幅比較</p>
+    </div>
+    <div class="spark" aria-label="1959 年至今的 CPI 全期走勢，亮色區塊為目前選取的年份範圍">
+      <svg id="spark" viewBox="0 0 600 84" role="img"></svg>
+      <div class="cap"><span id="sparkL"></span><span id="sparkR"></span></div>
+    </div>
+  </div>
+</header>
+
+<section class="filters" aria-label="全域篩選">
+  <div class="wrap">
+    <div class="f f-year">
+      <span class="lab">年份範圍（西元）</span>
+      <div class="range">
+        <div class="track"></div><div class="fill" id="yfill"></div>
+        <input type="range" id="y0" aria-label="起始年份">
+        <input type="range" id="y1" aria-label="結束年份">
+      </div>
+      <div class="yrs num"><span id="y0t"></span><span id="y1t"></span></div>
+    </div>
+    <div class="f f-month">
+      <span class="lab">月份（可複選）</span>
+      <div class="chips" id="months"></div>
+    </div>
+    <div class="f f-cat">
+      <span class="lab">商品類別</span>
+      <div class="chips"><button class="chip" aria-pressed="true" disabled>總指數（唯一可用）</button></div>
+      <span class="why">來源檔沒有商品類別，無法篩選。</span>
+    </div>
+    <div class="f f-metric">
+      <span class="lab">指標</span>
+      <div class="seg" id="metric">
+        <button data-v="index" aria-pressed="true">CPI 指數</button>
+        <button data-v="yoy" aria-pressed="false">年增率（%）</button>
+      </div>
+      <span class="why">影響圖一、圖三；圖二、圖四固定以變化率呈現。</span>
+    </div>
+    <div class="f f-mode">
+      <span class="lab">顯示方式</span>
+      <div class="seg">
+        <button aria-pressed="true">合併（總指數）</button>
+        <button disabled title="資料沒有商品類別">分開比較</button>
+      </div>
+      <span class="why">「分開比較」需要商品類別，來源檔未提供。</span>
+    </div>
+  </div>
+</section>
+
+<main class="wrap">
+  <div class="notice" id="notice">
+    資料說明：主計總處 <code>cpispl.xls</code> 只有「總指數」，沒有食物、居住等商品類別。因此類別篩選與「分開比較」已停用；
+    圖二改比較「各年度」年增率、圖四改比較「各年代」變化幅度，第四張摘要改為「單月最高年增率」。
+  </div>
+
+  <section class="kpis" aria-label="數據摘要">
+    <article class="kpi"><h2>最新一期 CPI 指數</h2><div class="v num" id="k1"></div><div class="d" id="k1d"></div></article>
+    <article class="kpi"><h2>最新一期 CPI 年增率</h2><div class="v num" id="k2"></div><div class="d" id="k2d"></div></article>
+    <article class="kpi"><h2>所選期間 CPI 指數變化幅度</h2><div class="v num" id="k3"></div><div class="d" id="k3d"></div></article>
+    <article class="kpi"><h2>所選期間單月最高年增率</h2><div class="v num" id="k4"></div><div class="d" id="k4d"></div></article>
+  </section>
+
+  <section class="grid">
+    <article class="card">
+      <header>
+        <div><h2>圖一　台灣 CPI 變化趨勢</h2><p class="what">總指數逐月走勢，虛線為基期（民國 110 年＝100）。</p></div>
+        <div class="tools seg" data-chart="1">
+          <button data-t="line" aria-pressed="true">折線</button><button data-t="bar" aria-pressed="false">長條</button>
+        </div>
+      </header>
+      <div class="chart" id="c1"></div>
+      <div class="empty" id="e1">目前篩選條件下沒有資料</div>
+      <p class="method" id="m1"></p>
+    </article>
+
+    <article class="card">
+      <header>
+        <div><h2>圖二　各年度物價漲幅比較</h2><p class="what">每一年相對前一年的漲幅，由高到低排序。</p></div>
+        <div class="tools seg" data-chart="2">
+          <button data-t="barH" aria-pressed="true">橫向</button><button data-t="barV" aria-pressed="false">直向</button>
+        </div>
+      </header>
+      <div class="chart" id="c2"></div>
+      <div class="empty" id="e2">目前篩選條件下沒有資料</div>
+      <p class="method" id="m2"></p>
+    </article>
+
+    <article class="card">
+      <header>
+        <div><h2>圖三　各月份物價變化</h2><p class="what">同一月份跨年比較，每個年份一種顏色。</p></div>
+        <div class="tools">
+          <select id="c3n" aria-label="顯示年份數">
+            <option value="5">最近 5 年</option><option value="10">最近 10 年</option><option value="999">範圍內全部</option>
+          </select>
+          <div class="seg" data-chart="3">
+            <button data-t="line" aria-pressed="true">折線</button><button data-t="bar" aria-pressed="false">長條</button>
+          </div>
+        </div>
+      </header>
+      <div class="chart" id="c3"></div>
+      <div class="empty" id="e3">目前篩選條件下沒有資料</div>
+      <p class="method" id="m3"></p>
+    </article>
+
+    <article class="card">
+      <header>
+        <div><h2>圖四　各年代物價變化幅度排名</h2><p class="what">把所選年份依年代（10 年）分段，比較每段期間的累積漲幅。</p></div>
+        <div class="tools seg" data-chart="4">
+          <button data-t="bar" aria-pressed="true">橫向長條</button><button data-t="scatter" aria-pressed="false">散佈圖</button>
+        </div>
+      </header>
+      <div class="chart" id="c4"></div>
+      <div class="empty" id="e4">資料不足，無法計算變化幅度</div>
+      <p class="method" id="m4"></p>
+    </article>
+  </section>
+
+  <footer>
+    <h2>資料來源與說明</h2>
+    <dl>
+      <dt>資料來源</dt><dd>行政院主計總處（DGBAS）消費者物價指數統計資料（消費者物價指數銜接表）。</dd>
+      <dt>實際資料期間</dt><dd id="fPeriod"></dd>
+      <dt>指數基期與單位</dt><dd>基期為民國 110 年（2021）＝100；CPI 指數單位為指數點，年增率單位為百分比（%）。</dd>
+      <dt>更新時間</dt><dd>來源檔未提供更新時間。依來源備註，最近 3 個月資料可能因受查者延誤或更正報價而修正。</dd>
+      <dt>如何解讀</dt><dd>CPI 衡量一籃子消費商品與服務的價格變動，不代表任何單一商品的實際售價。</dd>
+      <dt>年增率</dt><dd>與去年同月相比的漲跌幅（%），採主計總處公布值（民國 49 年起提供）。</dd>
+      <dt>圖二：年度漲幅</dt><dd>某年所選月份的指數平均 ÷ 前一年同月份的指數平均 − 1。只使用兩年都有資料的月份（例如當年尚未公布的月份會被排除），不會把各月年增率直接相加。</dd>
+      <dt>圖四：期間變化幅度</dt><dd>（期末指數 ÷ 期初指數 − 1）× 100%。期初、期末為該年代內所選範圍的第一年與最後一年，取兩年都有資料的所選月份之指數平均，基期相同。</dd>
+      <dt>摘要卡片</dt><dd>最新一期為篩選後最後一筆觀測；期間變化幅度為篩選後最後一筆相對第一筆的指數變化，單月最高年增率為篩選後年增率最大的一個月。</dd>
+      <dt>資料限制</dt><dd>只有總指數、沒有商品類別；民國 59 年（含）以前依台灣省政府編布之指數銜接；指數不能跨類別加總或平均。</dd>
+      <dt>原始資料</dt><dd><a href="https://github.com/411133059-dotcom/411133059" target="_blank" rel="noopener">GitHub 專案（含原始檔、ETL 與網頁程式）</a>　·　<a href="https://github.com/411133059-dotcom/411133059/blob/main/cpispl.xls" target="_blank" rel="noopener">下載原始檔 cpispl.xls</a></dd>
+    </dl>
+  </footer>
+</main>
+
+<script src="data.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<script>
+(function(){
+'use strict';
+var $=function(id){return document.getElementById(id)};
+var D=window.CPI_DATA;
+var notice=$('notice');
+if(!D){
+  notice.className='notice err';
+  notice.textContent='資料檔 data.js 載入失敗，請確認它和 index.html 放在同一個資料夾。';
+  return;
+}
+var HAS_ECHARTS=typeof window.echarts!=='undefined';
+if(!HAS_ECHARTS){
+  notice.className='notice err';
+  notice.textContent='圖表套件載入失敗，請確認網路連線';
+}
+
+var NAVY='#0f2547',BLUE='#2f6fdb',UP='#d64545',DOWN='#1f9d7a',GRID='#e3e8f0',MUTED='#5d6b84';
+var PALETTE=['#2f6fdb','#d64545','#1f9d7a','#e0a100','#7a4fd1','#0e8fa8','#c2569b','#6b7a90','#e2742b','#4c9a2a'];
+var REDUCE=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var OFF=D.meta.rocOffset||1911;
+var YEARS=D.years;
+var Y_MIN=YEARS[0],Y_MAX=YEARS[YEARS.length-1];
+
+var S={y0:Y_MIN,y1:Y_MAX,months:new Set(),metric:'index',t:{1:'line',2:'barH',3:'line',4:'bar'},n3:5};
+
+/* ---------- 資料存取與計算 ---------- */
+function idx(y,m){var a=D.index[y];return a?a[m-1]:null}
+function yoy(y,m){var a=D.yoy[y];return a?a[m-1]:null}
+function pad(n){return n<10?'0'+n:''+n}
+function selMonths(){
+  if(!S.months.size)return [1,2,3,4,5,6,7,8,9,10,11,12];
+  return Array.from(S.months).sort(function(a,b){return a-b});
+}
+function points(){
+  var out=[],M=selMonths();
+  for(var y=S.y0;y<=S.y1;y++){
+    if(!D.index[y])continue;
+    for(var i=0;i<M.length;i++){
+      var v=idx(y,M[i]);
+      if(v!=null)out.push({y:y,m:M[i],idx:v,yoy:yoy(y,M[i])});
+    }
+  }
+  return out;
+}
+function common(M,years){
+  return M.filter(function(m){return years.every(function(y){return idx(y,m)!=null})});
+}
+function mean(y,M){
+  var s=0;for(var i=0;i<M.length;i++)s+=idx(y,M[i]);return s/M.length;
+}
+function fmtMonths(M){
+  if(M.length===1)return M[0]+'月';
+  var contiguous=M.every(function(m,i){return i===0||m===M[i-1]+1});
+  return contiguous?M[0]+'–'+M[M.length-1]+'月':M.join('、')+'月';
+}
+function f2(v){return v.toFixed(2)}
+function pct(v){return (v>0?'+':'')+v.toFixed(2)+'%'}
+function per(y,m){return y+'年'+m+'月（民國'+(y-OFF)+'年）'}
+
+/* 圖二：各年度漲幅（同月份對同月份） */
+function calcYearly(){
+  var M=selMonths(),rows=[];
+  for(var y=S.y0;y<=S.y1;y++){
+    if(!D.index[y]||!D.index[y-1])continue;
+    var C=common(M,[y,y-1]);
+    if(!C.length)continue;
+    var v=(mean(y,C)/mean(y-1,C)-1)*100;
+    rows.push({y:y,v:v,C:C,partial:C.length<M.length});
+  }
+  rows.sort(function(a,b){return b.v-a.v});
+  return rows;
+}
+/* 圖四：各年代期間變化幅度 */
+function calcDecades(){
+  var M=selMonths(),by={};
+  for(var y=S.y0;y<=S.y1;y++){
+    if(!D.index[y])continue;
+    var d=Math.floor(y/10)*10;(by[d]=by[d]||[]).push(y);
+  }
+  var rows=[];
+  Object.keys(by).forEach(function(d){
+    var ys=by[d].filter(function(y){return M.some(function(m){return idx(y,m)!=null})});
+    if(ys.length<2)return;
+    var a=ys[0],b=ys[ys.length-1],C=common(M,[a,b]);
+    if(!C.length)return;
+    var s=mean(a,C),e=mean(b,C);
+    rows.push({d:+d,a:a,b:b,start:s,end:e,v:(e/s-1)*100,C:C});
+  });
+  rows.sort(function(a,b){return b.v-a.v});
+  return rows;
+}
+
+/* ---------- 摘要 ---------- */
+function setKpi(id,text,cls,detail){
+  var el=$(id);
+  el.className='v num'+(cls?' '+cls:'');
+  el.innerHTML=text;
+  $(id+'d').textContent=detail||'';
+}
+function renderKpis(){
+  var P=points();
+  if(!P.length){
+    ['k1','k2','k3','k4'].forEach(function(k){setKpi(k,'資料不足','na','')});
+    return;
+  }
+  var last=P[P.length-1],first=P[0];
+  setKpi('k1',f2(last.idx),'','基期 民國110年＝100｜'+per(last.y,last.m));
+  if(last.yoy==null)setKpi('k2','資料不足','na','該期沒有年增率資料');
+  else setKpi('k2',(last.yoy>0?'+':'')+f2(last.yoy)+'<small>%</small>',last.yoy>0?'up':last.yoy<0?'down':'','與去年同月相比｜'+last.y+'年'+last.m+'月');
+  if(P.length<2)setKpi('k3','資料不足','na','至少需要兩期觀測');
+  else{
+    var ch=(last.idx/first.idx-1)*100;
+    setKpi('k3',(ch>0?'+':'')+f2(ch)+'<small>%</small>',ch>0?'up':ch<0?'down':'',first.y+'-'+pad(first.m)+'（'+f2(first.idx)+'）→ '+last.y+'-'+pad(last.m)+'（'+f2(last.idx)+'）');
+  }
+  var best=null;
+  P.forEach(function(p){if(p.yoy!=null&&(!best||p.yoy>best.yoy))best=p});
+  if(!best)setKpi('k4','資料不足','na','所選期間沒有年增率資料');
+  else setKpi('k4',(best.yoy>0?'+':'')+f2(best.yoy)+'<small>%</small>',best.yoy>0?'up':best.yoy<0?'down':'',best.y+'年'+best.m+'月（民國'+(best.y-OFF)+'年）');
+}
+
+/* ---------- 標題區走勢線 ---------- */
+function renderSpark(){
+  var W=600,H=84,pts=[],mx=0;
+  YEARS.forEach(function(y){for(var m=1;m<=12;m++){var v=idx(y,m);if(v!=null){pts.push([y+(m-1)/12,v]);if(v>mx)mx=v}}});
+  var x0=Y_MIN,x1=Y_MAX+1;
+  function X(t){return (t-x0)/(x1-x0)*W}
+  function Yp(v){return H-6-(v/mx)*(H-14)}
+  var d=pts.map(function(p,i){return (i?'L':'M')+X(p[0]).toFixed(1)+' '+Yp(p[1]).toFixed(1)}).join('');
+  var bx=X(S.y0),bw=X(S.y1+1)-X(S.y0);
+  var lp=pts[pts.length-1];
+  $('spark').innerHTML=
+    '<rect x="'+bx.toFixed(1)+'" y="0" width="'+Math.max(bw,2).toFixed(1)+'" height="'+H+'" fill="#2f6fdb" opacity=".35" rx="3"/>'+
+    '<path d="'+d+'" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/>'+
+    '<circle cx="'+X(lp[0]).toFixed(1)+'" cy="'+Yp(lp[1]).toFixed(1)+'" r="3.5" fill="#fff"/>';
+  $('sparkL').innerHTML='<b>'+Y_MIN+'</b> 指數 '+f2(pts[0][1]);
+  $('sparkR').innerHTML='<b>'+D.meta.last+'</b> 指數 '+f2(lp[1]);
+}
+
+/* ---------- 圖表 ---------- */
+var charts={};
+function getChart(n){
+  if(!HAS_ECHARTS)return null;
+  if(!charts[n])charts[n]=echarts.init($('c'+n));
+  return charts[n];
+}
+function msg(n,text){
+  var e=$('e'+n);
+  if(text){e.textContent=text;e.classList.add('on')}else e.classList.remove('on');
+}
+function axisText(){return {color:MUTED,fontSize:11}}
+var BASE={animation:!REDUCE,animationDuration:450,animationDurationUpdate:450,textStyle:{fontFamily:'"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif'}};
+
+function draw(n,opt,note){
+  var c=getChart(n);
+  if(!HAS_ECHARTS){msg(n,'圖表套件載入失敗，請確認網路連線');return}
+  if(!opt){
+    c.clear();
+    msg(n,n===4?'資料不足，無法計算變化幅度':'目前篩選條件下沒有資料');
+    return;
+  }
+  msg(n,null);
+  c.setOption(Object.assign({},BASE,opt),true);
+}
+
+function metricInfo(){
+  return S.metric==='index'
+    ?{key:'idx',name:'CPI 指數',unit:'',axis:'CPI 指數（民國110年＝100）',line:100,lineName:'基期 100'}
+    :{key:'yoy',name:'CPI 年增率',unit:'%',axis:'年增率（%）',line:0,lineName:'0%'};
+}
+
+function optC1(){
+  var mi=metricInfo(),P=points().filter(function(p){return p[mi.key]!=null});
+  if(!P.length)return null;
+  var x=P.map(function(p){return p.y+'-'+pad(p.m)});
+  var vals=P.map(function(p){return p[mi.key]});
+  var few=P.length<=36,isLine=S.t[1]==='line';
+  var ser={
+    id:'s1',name:'總指數 '+mi.name,type:S.t[1],data:vals,universalTransition:true,
+    itemStyle:{color:BLUE},lineStyle:{width:2},
+    showSymbol:few,symbolSize:6,
+    label:{show:P.length<=14,position:'top',fontSize:11,formatter:function(p){return f2(p.value)}},
+    markLine:{silent:true,symbol:'none',lineStyle:{color:NAVY,type:'dashed',width:1.2},
+      label:{formatter:mi.lineName+(S.metric==='index'?'（民國110年＝100）':''),position:'insideEndTop',color:NAVY,fontSize:11},
+      data:[{yAxis:mi.line}]}
+  };
+  return {
+    grid:{left:58,right:20,top:58,bottom:P.length>24?78:34},
+    legend:{top:4,left:0,textStyle:{color:MUTED,fontSize:12}},
+    tooltip:{trigger:'axis',valueFormatter:function(v){return v==null?'—':f2(v)+(mi.unit?' '+mi.unit:'')},
+      formatter:function(ps){var p=ps[0],pt=P[p.dataIndex];return pt.y+'年'+pt.m+'月（民國'+(pt.y-OFF)+'年）<br/>'+p.marker+mi.name+'：<b>'+f2(p.value)+(mi.unit?' '+mi.unit:'')+'</b>'}},
+    xAxis:{type:'category',data:x,axisLabel:axisText(),axisLine:{lineStyle:{color:GRID}},name:'年月',nameLocation:'middle',nameGap:P.length>24?30:26,nameTextStyle:{color:MUTED}},
+    yAxis:{type:'value',scale:isLine,name:mi.axis,nameTextStyle:{color:MUTED,align:'left'},axisLabel:axisText(),splitLine:{lineStyle:{color:GRID}}},
+    dataZoom:P.length>24?[{type:'inside'},{type:'slider',height:16,bottom:4}]:[],
+    series:[ser]
+  };
+}
+
+function optC2(){
+  var rows=calcYearly();
+  if(!rows.length)return null;
+  var horizontal=S.t[2]==='barH';
+  var names=rows.map(function(r){return r.y+(r.partial?'（'+fmtMonths(r.C)+'）':'')});
+  var data=rows.map(function(r){
+    return {value:+r.v.toFixed(2),itemStyle:{color:r.v>=0?UP:DOWN},
+      label:{position:horizontal?(r.v>=0?'right':'left'):(r.v>=0?'top':'bottom')}};
+  });
+  var n=rows.length,zoomN=Math.min(n,horizontal?14:20);
+  var cat={type:'category',data:names,axisLabel:{color:MUTED,fontSize:11,rotate:horizontal?0:40},axisLine:{lineStyle:{color:GRID}},
+    name:horizontal?'':'年度',nameLocation:'middle',nameGap:horizontal?0:48,nameTextStyle:{color:MUTED}};
+  var val={type:'value',name:'年增率（%）',nameLocation:'middle',nameGap:horizontal?28:44,nameTextStyle:{color:MUTED},axisLabel:{color:MUTED,fontSize:11},splitLine:{lineStyle:{color:GRID}}};
+  var zoom=n>zoomN?[
+    horizontal?{type:'slider',yAxisIndex:0,startValue:0,endValue:zoomN-1,right:0,width:14,top:30,bottom:30,brushSelect:false}
+              :{type:'slider',xAxisIndex:0,startValue:0,endValue:zoomN-1,height:16,bottom:4,brushSelect:false},
+    horizontal?{type:'inside',yAxisIndex:0,startValue:0,endValue:zoomN-1}:{type:'inside',xAxisIndex:0,startValue:0,endValue:zoomN-1}
+  ]:[];
+  if(horizontal)cat.inverse=true;
+  return {
+    grid:horizontal?{left:56,right:n>zoomN?58:48,top:34,bottom:52}:{left:58,right:20,top:34,bottom:n>zoomN?100:76},
+    legend:{top:2,left:0,data:['漲','跌'],textStyle:{color:MUTED,fontSize:12},selectedMode:false},
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},formatter:function(ps){
+      var r=rows[ps[0].dataIndex];
+      return '<b>'+r.y+'年（民國'+(r.y-OFF)+'年）</b><br/>年增率：<b>'+pct(r.v)+'</b><br/>比較月份：'+fmtMonths(r.C)+'<br/>與'+(r.y-1)+'年同月份相比';}},
+    xAxis:horizontal?val:cat,
+    yAxis:horizontal?cat:val,
+    dataZoom:zoom,
+    series:[
+      {id:'s2',name:'漲',type:'bar',data:data,barMaxWidth:22,universalTransition:true,
+        label:{show:true,fontSize:11,color:NAVY,formatter:function(p){return pct(p.value)}}},
+      {name:'跌',type:'bar',data:[],itemStyle:{color:DOWN}}
+    ],
+    color:[UP]
+  };
+}
+
+function optC3(){
+  var mi=metricInfo(),M=selMonths();
+  var ys=YEARS.filter(function(y){return y>=S.y0&&y<=S.y1&&M.some(function(m){var v=mi.key==='idx'?idx(y,m):yoy(y,m);return v!=null})});
+  if(!ys.length)return null;
+  ys=ys.slice(-S.n3);
+  var shown=ys.length;
+  var series=ys.map(function(y,i){
+    return {id:'y'+y,name:String(y),type:S.t[3],universalTransition:true,
+      data:M.map(function(m){var v=mi.key==='idx'?idx(y,m):yoy(y,m);return v==null?null:v}),
+      itemStyle:{color:PALETTE[i%PALETTE.length]},lineStyle:{width:2},symbolSize:5,showSymbol:true,barMaxWidth:18};
+  });
+  return {
+    color:PALETTE,
+    grid:{left:58,right:20,top:62,bottom:36},
+    legend:{type:'scroll',top:4,left:0,right:0,textStyle:{color:MUTED,fontSize:12}},
+    tooltip:{trigger:'axis',valueFormatter:function(v){return v==null?'—':f2(v)+(mi.unit?' '+mi.unit:'')}},
+    xAxis:{type:'category',data:M.map(function(m){return m+'月'}),axisLabel:axisText(),axisLine:{lineStyle:{color:GRID}},name:'月份',nameLocation:'middle',nameGap:26,nameTextStyle:{color:MUTED}},
+    yAxis:{type:'value',scale:S.t[3]==='line',name:mi.axis,nameTextStyle:{color:MUTED,align:'left'},axisLabel:axisText(),splitLine:{lineStyle:{color:GRID}}},
+    series:series
+  };
+}
+
+function optC4(){
+  var rows=calcDecades();
+  if(!rows.length)return null;
+  var labels=rows.map(function(r){return r.a+'–'+r.b});
+  var tip=function(r){
+    return '<b>'+r.a+'–'+r.b+'年</b><br/>期初指數（'+r.a+'）：'+f2(r.start)+'<br/>期末指數（'+r.b+'）：'+f2(r.end)+
+      '<br/>變化幅度：<b>'+pct(r.v)+'</b><br/>使用月份：'+fmtMonths(r.C);
+  };
+  if(S.t[4]==='scatter'){
+    return {
+      grid:{left:62,right:30,top:38,bottom:48},
+      legend:{top:2,left:0,data:['年代分段'],textStyle:{color:MUTED,fontSize:12}},
+      tooltip:{trigger:'item',formatter:function(p){return tip(rows[p.dataIndex])}},
+      xAxis:{type:'value',scale:true,name:'期初 CPI 指數',nameLocation:'middle',nameGap:28,nameTextStyle:{color:MUTED},axisLabel:axisText(),splitLine:{lineStyle:{color:GRID}}},
+      yAxis:{type:'value',name:'期間變化幅度（%）',nameTextStyle:{color:MUTED,align:'left'},axisLabel:axisText(),splitLine:{lineStyle:{color:GRID}}},
+      series:[{id:'s4',name:'年代分段',type:'scatter',symbolSize:16,universalTransition:true,
+        data:rows.map(function(r){return {value:[+r.start.toFixed(2),+r.v.toFixed(2)],itemStyle:{color:r.v>=0?UP:DOWN}}}),
+        label:{show:true,position:'right',color:NAVY,fontSize:11,formatter:function(p){return labels[p.dataIndex]}}}]
+    };
+  }
+  return {
+    grid:{left:84,right:56,top:34,bottom:54},
+    legend:{top:2,left:0,data:['漲','跌'],textStyle:{color:MUTED,fontSize:12},selectedMode:false},
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},formatter:function(ps){return tip(rows[ps[0].dataIndex])}},
+    xAxis:{type:'value',name:'期間變化幅度（%）',nameLocation:'middle',nameGap:28,nameTextStyle:{color:MUTED},axisLabel:axisText(),splitLine:{lineStyle:{color:GRID}}},
+    yAxis:{type:'category',inverse:true,data:labels,axisLabel:{color:MUTED,fontSize:11},axisLine:{lineStyle:{color:GRID}},name:''},
+    series:[
+      {id:'s4',name:'漲',type:'bar',barMaxWidth:24,universalTransition:true,
+        data:rows.map(function(r){return {value:+r.v.toFixed(2),itemStyle:{color:r.v>=0?UP:DOWN},label:{position:r.v>=0?'right':'left'}}}),
+        label:{show:true,fontSize:11,color:NAVY,formatter:function(p){return pct(p.value)}}},
+      {name:'跌',type:'bar',data:[],itemStyle:{color:DOWN}}
+    ],
+    color:[UP]
+  };
+}
+
+function renderMethods(){
+  var M=selMonths(),mtxt=S.months.size?fmtMonths(M):'全部月份';
+  $('m1').textContent='資料：'+S.y0+'–'+S.y1+' 年、'+mtxt+'。'+(S.metric==='index'?'指數基期為民國 110 年＝100，虛線為 100。':'年增率為官方公布值，虛線為 0%。');
+  $('m2').textContent='計算：某年所選月份指數平均 ÷ 前一年同月份指數平均 − 1（使用月份：'+mtxt+'；括號內為該年實際可比較的月份）。固定顯示年增率，不受「指標」影響。';
+  var r=calcDecades();
+  $('m4').textContent=r.length
+    ?'計算：（期末指數 ÷ 期初指數 − 1）× 100%。每個年代取所選範圍內的第一年與最後一年，使用兩年都有資料的月份平均（'+mtxt+'）。固定顯示變化率。'
+    :'計算：（期末指數 ÷ 期初指數 − 1）× 100%。每個年代需要至少兩個年份的資料才能計算，請放寬年份範圍。';
+  var n=Math.min(S.n3,YEARS.filter(function(y){return y>=S.y0&&y<=S.y1}).length);
+  $('m3').textContent='顯示範圍內最近 '+n+' 年，可用圖例開關個別年份。X 軸只列出所選月份；沒有資料的月份會留空，不補值。';
+}
+
+function renderCharts(){
+  draw(1,optC1());draw(2,optC2());draw(3,optC3());draw(4,optC4());
+}
+function render(){
+  $('y0t').textContent=S.y0+'（民國'+(S.y0-OFF)+'）';
+  $('y1t').textContent=S.y1+'（民國'+(S.y1-OFF)+'）';
+  var lo=(S.y0-Y_MIN)/(Y_MAX-Y_MIN)*100,hi=(S.y1-Y_MIN)/(Y_MAX-Y_MIN)*100;
+  $('yfill').style.left=lo+'%';$('yfill').style.width=(hi-lo)+'%';
+  renderKpis();renderSpark();renderMethods();renderCharts();
+}
+
+/* ---------- 篩選與切換事件 ---------- */
+var r0=$('y0'),r1=$('y1');
+[r0,r1].forEach(function(r){r.min=Y_MIN;r.max=Y_MAX;r.step=1});
+r0.value=S.y0;r1.value=S.y1;
+r0.addEventListener('input',function(){S.y0=Math.min(+r0.value,S.y1);r0.value=S.y0;render()});
+r1.addEventListener('input',function(){S.y1=Math.max(+r1.value,S.y0);r1.value=S.y1;render()});
+
+var mbox=$('months');
+function buildMonths(){
+  mbox.innerHTML='';
+  var all=document.createElement('button');
+  all.className='chip';all.textContent='全部月份';all.dataset.m='0';
+  all.setAttribute('aria-pressed',S.months.size?'false':'true');mbox.appendChild(all);
+  for(var m=1;m<=12;m++){
+    var b=document.createElement('button');
+    b.className='chip';b.textContent=m+'月';b.dataset.m=m;
+    b.setAttribute('aria-pressed',S.months.has(m)?'true':'false');mbox.appendChild(b);
+  }
+}
+mbox.addEventListener('click',function(e){
+  var b=e.target.closest('button');if(!b)return;
+  var m=+b.dataset.m;
+  if(m===0)S.months.clear();
+  else{S.months.has(m)?S.months.delete(m):S.months.add(m);if(S.months.size===12)S.months.clear()}
+  buildMonths();render();
+});
+
+function bindSeg(box,cb){
+  box.addEventListener('click',function(e){
+    var b=e.target.closest('button');if(!b||b.disabled)return;
+    box.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});
+    cb(b);
+  });
+}
+bindSeg($('metric'),function(b){S.metric=b.dataset.v;render()});
+document.querySelectorAll('.seg[data-chart]').forEach(function(box){
+  var n=+box.dataset.chart;
+  bindSeg(box,function(b){S.t[n]=b.dataset.t;render()});
+});
+$('c3n').addEventListener('change',function(e){S.n3=+e.target.value;render()});
+
+window.addEventListener('resize',function(){Object.keys(charts).forEach(function(k){charts[k].resize()})});
+if(window.ResizeObserver&&HAS_ECHARTS){
+  var ro=new ResizeObserver(function(){Object.keys(charts).forEach(function(k){charts[k].resize()})});
+  document.querySelectorAll('.chart').forEach(function(el){ro.observe(el)});
+}
+
+$('fPeriod').textContent=D.meta.first+' 至 '+D.meta.last+'（民國 '+(+D.meta.first.slice(0,4)-OFF)+' 年 1 月至民國 '+(+D.meta.last.slice(0,4)-OFF)+' 年 '+(+D.meta.last.slice(5))+' 月），共 '+D.meta.records+' 個月份觀測。';
+
+buildMonths();
+render();
+
+/* 供檢查用 */
+window.__cpi={S:S,points:points,calcYearly:calcYearly,calcDecades:calcDecades,render:render,charts:charts};
+})();
+</script>
+</body>
+</html>
